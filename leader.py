@@ -16,7 +16,6 @@ logging.basicConfig(level=logging.INFO)
 
 with peer:
     print("Peer started...")
-    print(peer.get_telemetry(frame_id="aruco_map"))
     print("Waiting for peers...")
     peer.wait_for_peer_amount(2)
     print(f"Got peers: {peer.get_peers()}")

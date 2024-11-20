@@ -23,7 +23,11 @@ with peer:
 
     peer.takeoff()
     peer.navigate_wait(x=0.5, y=0.5, z=1.5, frame_id="aruco_map")
-    peer.wait(5)
+    peer.wait(1)
+
+    telem = peer.telemetry_channel.get_for(leader)
+    peer.navigate_wait(x=telem["x"] + 0.75, y=telem["y"], z=telem["z"], frame_id="aruco_map")
+    peer.wait(3)
 
     while not rospy.is_shutdown():
         telem = peer.telemetry_channel.get_for(leader)
@@ -31,5 +35,7 @@ with peer:
             break
         if leader not in peer.get_peers():
             break
-        peer.navigate_wait(x=telem["x"] + 0.75, y=telem["y"], z=telem["z"], frame_id="aruco_map")
+        peer.set_position(x=telem["x"], y=telem["y"], z=telem["z"], frame_id="aruco_map")
+        peer.wait(0.1)
+
     peer.land()

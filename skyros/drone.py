@@ -1,9 +1,10 @@
 import math
+import threading
 import uuid
 
 import rospy
 from attrs import define, field
-from clover.srv import GetTelemetry, GetTelemetryResponse, Navigate
+from clover.srv import GetTelemetry, GetTelemetryResponse, Navigate, SetPosition
 from std_srvs.srv import Trigger
 
 from skyros.peer import Channel, Peer
@@ -12,27 +13,33 @@ from skyros.peer import Channel, Peer
 @define()
 class Drone(Peer):
     name: str = field(factory=lambda: f"drone_{uuid.uuid4().hex[0:6]}")
-    telemetry_rate: float = field(default=1.0)
+    telemetry_rate: float = field(default=5.0)
     telemetry_frame: str = field(default="aruco_map")
 
+    _telemtry_lock: threading.Lock = field(init=False, factory=threading.Lock)
     _telemetry_timer: rospy.Timer = field(init=False)
-    get_telemetry: rospy.ServiceProxy = field(init=False)
+    _get_telemetry: rospy.ServiceProxy = field(init=False)
     telemetry_channel: Channel = field(init=False)
 
     navigate: rospy.ServiceProxy = field(init=False)
     autoland = rospy.ServiceProxy("land", Trigger)
+    set_position = rospy.ServiceProxy("set_position", SetPosition)
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self.get_telemetry = rospy.ServiceProxy("get_telemetry", GetTelemetry)
+        self._get_telemetry = rospy.ServiceProxy("get_telemetry", GetTelemetry)
         self.telemetry_channel = Channel(key="telemetry/pose")
         self.add_channel(self.telemetry_channel)
 
         self.navigate = rospy.ServiceProxy("navigate", Navigate)
 
-    def telemetry_sender(self, event):
-        telem: GetTelemetryResponse = self.get_telemetry(frame_id=self.telemetry_frame)
+    def get_telemetry(self, frame_id: str = "aruco_map") -> GetTelemetryResponse:
+        with self._telemtry_lock:
+            return self._get_telemetry(frame_id=frame_id)
+
+    def telemetry_sender(self, _):
+        telem = self.get_telemetry(frame_id=self.telemetry_frame)
         self.telemetry_channel.send(
             {
                 "x": telem.x,
@@ -82,7 +89,7 @@ class Drone(Peer):
         if not telem.armed:
             raise RuntimeError("Arming failed!")
         self.wait(delay)
-        self.logger.info(f"Takeoff done")
+        self.logger.info("Takeoff done")
 
     def land(self, z=0.5, delay: float = 4.0, frame_id="aruco_map"):
         telem: GetTelemetryResponse = self.get_telemetry(frame_id=frame_id)
