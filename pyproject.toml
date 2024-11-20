@@ -1,0 +1,31 @@
+[project]
+name = "skyros"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "attrs>=24.2.0",
+    "click>=8.1.7",
+    "eclipse-zenoh==1.0.2",
+    "json5>=0.9.28",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.7.3",
+]
+
+[tool.ruff]
+line-length = 120
+[tool.ruff.lint]
+# https://docs.astral.sh/ruff/rules/
+extend-select = ["I", "Q", "B",  "ARG", "TCH", "SIM"]
+ignore = []
+
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
