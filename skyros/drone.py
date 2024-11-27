@@ -1,6 +1,7 @@
 import math
 import threading
 import uuid
+from typing import Tuple
 
 import rospy
 from attrs import define, field
@@ -111,7 +112,7 @@ class Drone(Peer):
         prev_vy: float = 0,
         prev_vz: float = 0,
         dt: float = 0.1,
-    ) -> tuple[float, float, float]:
+    ) -> Tuple[float, float, float]:
         """Calculate avoidance vector based on other drones' positions."""
         fx = 0
         fy = 0
