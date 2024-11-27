@@ -52,27 +52,27 @@ class Drone(Peer):
         with self._telemtry_lock:
             return self._get_telemetry(frame_id=frame_id)
 
+    def _telemetry_to_dict(self, telem: GetTelemetryResponse) -> dict:
+        return {
+            "x": telem.x,
+            "y": telem.y,
+            "z": telem.z,
+            "yaw": telem.yaw,
+            "vx": telem.vx,
+            "vy": telem.vy,
+            "vz": telem.vz,
+            "yaw_rate": telem.yaw_rate,
+            "frame_id": telem.frame_id,
+        }
+
     def telemetry_sender(self, _):
         telem = self.get_telemetry(frame_id=self.telemetry_frame)
-        self.telemetry_channel.send(
-            {
-                "x": telem.x,
-                "y": telem.y,
-                "z": telem.z,
-                "yaw": telem.yaw,
-                "vx": telem.vx,
-                "vy": telem.vy,
-                "vz": telem.vz,
-                "yaw_rate": telem.yaw_rate,
-                "frame_id": telem.frame_id,
-            }
-        )
+        self.telemetry_channel.send(self._telemetry_to_dict(telem))
 
     def start(self):
         super().start()
         timer_duration = rospy.Duration(1.0 / self.telemetry_rate)
         self._telemetry_timer = rospy.Timer(period=timer_duration, callback=self.telemetry_sender)
-        # self._telemetry_timer.start()
 
     def stop(self):
         self._telemetry_timer.shutdown()
@@ -105,6 +105,7 @@ class Drone(Peer):
 
     def get_avoidance_vector(
         self,
+        my_telem: dict,
         target_x: float,
         target_y: float,
         target_z: float,
@@ -116,11 +117,6 @@ class Drone(Peer):
         """Calculate avoidance vector based on other drones' positions."""
         fx = 0
         fy = 0
-
-        # Get positions of all other drones
-        all_telemetry = self.telemetry_channel.get_all()
-        my_telem = self.telemetry_channel.get_for(self.name)
-
         # Calculate desired movement direction
         dx_target = target_x - my_telem["x"]
         dy_target = target_y - my_telem["y"]
@@ -133,6 +129,7 @@ class Drone(Peer):
         fx += dx_target * self.ATTRACTION_STRENGTH
         fy += dy_target * self.ATTRACTION_STRENGTH
 
+        all_telemetry = self.telemetry_channel.get_all()
         for drone_id, other_telem in all_telemetry.items():
             if drone_id == self.name:  # Skip self
                 continue
@@ -225,32 +222,32 @@ class Drone(Peer):
         vx = 0
         vy = 0
         vz = 0
-        
+
         target_dt = 0.1  # Target 10Hz rate
         last_time = rospy.get_time()
 
         while True:
             current_time = rospy.get_time()
             dt = current_time - last_time
-            
-            current_pos = self.get_telemetry(frame_id)
-            vx, vy, vz = self.get_avoidance_vector(x, y, z, vx, vy, vz, dt=dt)
+
+            telem = self.get_telemetry(frame_id)
+            vx, vy, vz = self.get_avoidance_vector(self._telemetry_to_dict(telem), x, y, z, vx, vy, vz, dt=dt)
             if vx == 0 and vy == 0 and vz == 0:
                 self.logger.info("Arrived at target")
                 break
 
             # Apply avoidance vector to movement
-            next_x = current_pos.x + vx * dt
-            next_y = current_pos.y + vy * dt
-            next_z = current_pos.z + vz * dt
+            next_x = telem.x + vx * dt
+            next_y = telem.y + vy * dt
+            next_z = telem.z + vz * dt
             self.set_position(x=next_x, y=next_y, z=next_z, yaw=yaw, frame_id=frame_id)
-            
+
             # Calculate sleep time to maintain target rate
             elapsed = rospy.get_time() - current_time
             sleep_time = max(0.0, target_dt - elapsed)
             if sleep_time > 0:
                 self.wait(sleep_time)
-            
+
             last_time = current_time
 
     def navigate_wait(self, x=0, y=0, z=0, yaw=float("nan"), speed=0.5, frame_id="", auto_arm=False, tolerance=0.2):
