@@ -219,36 +219,25 @@ class Drone(Peer):
         """Navigate to target position while avoiding other drones."""
         self.logger.info(f"Navigating to x={x:.2f} y={y:.2f} z={z:.2f} in {frame_id} with collision avoidance")
 
-        vx = 0
-        vy = 0
-        vz = 0
-
-        target_dt = 0.1  # Target 10Hz rate
-        last_time = rospy.get_time()
+        rate_hz = 10
+        rate = rospy.Rate(rate_hz)
+        target_dt = 1.0 / rate_hz
+        vx, vy, vz = 0, 0, 0
 
         while True:
-            current_time = rospy.get_time()
-            dt = current_time - last_time
-
             telem = self.get_telemetry(frame_id)
-            vx, vy, vz = self.get_avoidance_vector(self._telemetry_to_dict(telem), x, y, z, vx, vy, vz, dt=dt)
+            vx, vy, vz = self.get_avoidance_vector(self._telemetry_to_dict(telem), x, y, z, vx, vy, vz, dt=target_dt)
             if vx == 0 and vy == 0 and vz == 0:
                 self.logger.info("Arrived at target")
                 break
 
             # Apply avoidance vector to movement
-            next_x = telem.x + vx * dt
-            next_y = telem.y + vy * dt
-            next_z = telem.z + vz * dt
+            next_x = telem.x + vx * target_dt
+            next_y = telem.y + vy * target_dt
+            next_z = telem.z + vz * target_dt
             self.set_position(x=next_x, y=next_y, z=next_z, yaw=yaw, frame_id=frame_id)
 
-            # Calculate sleep time to maintain target rate
-            elapsed = rospy.get_time() - current_time
-            sleep_time = max(0.0, target_dt - elapsed)
-            if sleep_time > 0:
-                self.wait(sleep_time)
-
-            last_time = current_time
+            rate.sleep()
 
     def navigate_wait(self, x=0, y=0, z=0, yaw=float("nan"), speed=0.5, frame_id="", auto_arm=False, tolerance=0.2):
         self.logger.info(f"Navigating to x={x:.2f} y={y:.2f} z={z:.2f} in {frame_id}")
