@@ -49,11 +49,11 @@ wheels = [
 
 [[package]]
 name = "json5"
-version = "0.9.27"
+version = "0.10.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/8c/04/69fff96cffa54cbd60645ea94d36f40f3e90f1cff0e4c7b27475753f1724/json5-0.9.27.tar.gz", hash = "sha256:5a19de4a6ca24ba664dc7d50307eb73ba9a16dea5d6bde85677ae85d3ed2d8e0", size = 41842 }
+sdist = { url = "https://files.pythonhosted.org/packages/85/3d/bbe62f3d0c05a689c711cff57b2e3ac3d3e526380adb7c781989f075115c/json5-0.10.0.tar.gz", hash = "sha256:e66941c8f0a02026943c52c2eb34ebeb2a6f819a0be05920a6f5243cd30fd559", size = 48202 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a1/55/4bd7bcf5be870b5806cab717d68fbf26a8d1bf54583337950c70f0dc729b/json5-0.9.27-py3-none-any.whl", hash = "sha256:17b43d78d3a6daeca4d7030e9bf22092dba29b1282cc2d0cfa56f6febee8dc93", size = 30894 },
+    { url = "https://files.pythonhosted.org/packages/aa/42/797895b952b682c3dafe23b1834507ee7f02f4d6299b65aaa61425763278/json5-0.10.0-py3-none-any.whl", hash = "sha256:19b23410220a7271e8377f81ba8aacba2fdd56947fbb137ee5977cbe1f5e8dfa", size = 34049 },
 ]
 
 [[package]]
@@ -102,7 +102,7 @@ requires-dist = [
     { name = "attrs", specifier = ">=24.2.0" },
     { name = "click", specifier = ">=8.1.7" },
     { name = "eclipse-zenoh", specifier = "==1.0.2" },
-    { name = "json5", specifier = ">=0.9.27" },
+    { name = "json5", specifier = ">=0.9.28" },
 ]
 
 [package.metadata.requires-dev]

@@ -169,6 +169,10 @@ class Channel:
     def get_for(self, name: str) -> dict:
         with self._cache_lock:
             return self._cache[name]
+    
+    def get_all(self) -> Dict[str, dict]:
+        with self._cache_lock:
+            return self._cache.copy()
 
 
 if __name__ == "__main__":

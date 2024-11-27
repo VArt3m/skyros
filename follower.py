@@ -35,7 +35,7 @@ with peer:
             break
         if leader not in peer.get_peers():
             break
-        peer.set_position(x=telem["x"], y=telem["y"], z=telem["z"], frame_id="aruco_map")
+        peer.set_position(x=telem["x"] + 0.75, y=telem["y"], z=telem["z"], frame_id="aruco_map")
         peer.wait(0.1)
 
     peer.land()
