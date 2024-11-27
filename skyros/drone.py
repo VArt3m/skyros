@@ -29,6 +29,7 @@ class Drone(Peer):
     # Constants for collision avoidance
     COLLISION_RADIUS = 0.25  # drone radius in meters
     MAX_SPEED = 0.75  # maximum speed in meters per second
+    MAX_ACCELERATION = 1.0  # maximum acceleration in meters per second^2
     REPULSION_STRENGTH = 50000.0  # repulsion force strength
     ATTRACTION_STRENGTH = 1.0  # attraction to target strength
     NEAR_TARGET_REPULSION_MULT = 1.5  # Multiply repulsion when near target
