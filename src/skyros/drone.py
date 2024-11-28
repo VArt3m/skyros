@@ -260,7 +260,17 @@ class Drone(Peer):
                 self.logger.info("Timed out")
                 break
 
-    def navigate_wait(self, x=0, y=0, z=0, yaw=float("nan"), speed=0.5, frame_id="", auto_arm=False, tolerance=0.2):
+    def navigate_wait(
+        self,
+        x: float = 0.0,
+        y: float = 0.0,
+        z: float = 0.0,
+        yaw: float = float("nan"),
+        speed: float = 0.5,
+        frame_id: str = "",
+        auto_arm: bool = False,
+        tolerance: float = 0.2,
+    ):
         self.logger.info(f"Navigating to x={x:.2f} y={y:.2f} z={z:.2f} in {frame_id}")
         self.navigate(x=x, y=y, z=z, yaw=yaw, speed=speed, frame_id=frame_id, auto_arm=auto_arm)
 

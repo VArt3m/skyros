@@ -4,7 +4,7 @@ import pathlib
 import threading
 import time
 import uuid
-from typing import Any, Callable, Dict, List, cast
+from typing import Any, Callable, Dict, List, Union, cast
 
 import json5
 import zenoh
@@ -13,8 +13,8 @@ from attrs import define, field
 
 @define()
 class Peer:
-    zenoh_config_path: pathlib.Path
-    known_peer_addrs: List[str] = field(factory=list)
+    raw_config: Union[pathlib.Path, Dict[str, Any]] = field(factory=dict)
+    known_addrs: List[str] = field(factory=list)
     channels: List["Channel"] = field(factory=list)
 
     zenoh_config: zenoh.Config = field(init=False)
@@ -30,14 +30,19 @@ class Peer:
 
     def __attrs_post_init__(self):
         self.logger = logging.getLogger(self.name)
-        raw_config = cast(dict, json5.loads(self.zenoh_config_path.read_text()))
-
-        config_endpoints = raw_config["connect"]["endpoints"]
-        self.logger.debug(f"Config endpoints: {config_endpoints}")
-        config_endpoints += []
-        self.logger.info(f"Total endpoints: {config_endpoints}")
+        if isinstance(self.raw_config, dict):
+            raw_config = self.raw_config
+        else:
+            raw_config = cast(dict, json5.loads(self.raw_config.read_text()))
 
         self.zenoh_config = zenoh.Config.from_json5(cast(str, json5.dumps(raw_config)))
+        # print(self.zenoh_config.get_json("connect/endpoints"))
+        raw_endpoints = self.zenoh_config.get_json("connect/endpoints")
+        config_endpoints = cast(List[str], json5.loads(raw_endpoints))
+        self.logger.debug(f"Config endpoints: {config_endpoints}")
+        config_endpoints += self.known_addrs
+        self.logger.info(f"Total endpoints: {config_endpoints}")
+        self.zenoh_config.insert_json5("connect/endpoints", json5.dumps(config_endpoints))
 
     def start(self):
         self.logger.info("Starting")
@@ -98,7 +103,7 @@ class Peer:
             self.wait(duration)
 
     def wait_for_peer_amount(self, amount: int, duration: float = 0.1):
-        while len(self.get_peers(me=True)) < amount:
+        while len(self.get_peers()) < amount:
             self.wait(duration)
 
     def get_peers(self, me: bool = False):
@@ -108,6 +113,14 @@ class Peer:
             peers.remove(self.name)
         return peers
 
+    @property
+    def peers(self):
+        return self.get_peers()
+
+    @property
+    def peer_amount(self):
+        return len(self.get_peers())
+
     def add_channel(self, channel: "Channel") -> None:
         if self.running:
             channel._open(self)
@@ -116,7 +129,7 @@ class Peer:
         self.logger.info(f"Added channel {channel.key}")
 
 
-def _default_callback(sender: str, data: dict) -> None:
+def _default_callback(sender: str, data: dict) -> None:  # noqa: ARG001
     return None
 
 
