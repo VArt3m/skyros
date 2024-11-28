@@ -163,13 +163,13 @@ class Channel:
         self.callback_func(sender, data)
 
     def send(self, data: dict):
-        self._peer.logger.info(f"Sending {data}")
+        # self._peer.logger.info(f"Sending {data}")
         self._publisher.put(json.dumps(data).encode("utf-8"))
 
     def get_for(self, name: str) -> dict:
         with self._cache_lock:
             return self._cache[name]
-    
+
     def get_all(self) -> Dict[str, dict]:
         with self._cache_lock:
             return self._cache.copy()

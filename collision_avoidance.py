@@ -27,17 +27,27 @@ with peer:
     peer.wait(2)
 
     # Navigate with collision avoidance
-    waypoints = [
-        (2.0, 2.0, 1.5),
-        (2.0, 0.0, 1.5),
-        (1.5, 1.0, 1.5),
+    waypoints1 = [
+        (0.8, 0.0, 1.5),
+        (-0.8, -0.64, 1.5),
+        (0.8, 0.15, 1.5),
+        (0.0, -0.3, 1.5),
     ]
 
-    for x, y, z in waypoints:
-        logger.info(f"Navigating to waypoint: ({x}, {y}, {z})")
-        peer.navigate_with_avoidance(x=x, y=y, z=z, frame_id="aruco_map")
-        peer.wait(1)  # Short pause at each waypoint
+    waypoints2 = [
+        (-0.8, 0.0, 1.5),
+        (0.8, 0.15, 1.5),
+        (-0.8, -0.64, 1.5),
+        (0.0, -0.3, 1.5),
+    ]
+    waypoints = waypoints1
 
-    # Return to start and land
-    peer.navigate_with_avoidance(x=0, y=0, z=1.5, frame_id="aruco_map")
-    peer.land()
+    try:
+        for x, y, z in waypoints:
+            logger.info(f"Navigating to waypoint: ({x}, {y}, {z})")
+            peer.navigate_with_avoidance(x=x, y=y, z=z, frame_id="aruco_map", timeout=20.0)
+            peer.wait(1)
+    finally:
+        # Return to start and land
+        peer.navigate_wait(x=0.8, y=0, z=1.0, frame_id="aruco_map")
+        peer.land()

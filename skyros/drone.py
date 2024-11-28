@@ -1,5 +1,6 @@
 import math
 import threading
+import time
 import uuid
 from typing import Tuple
 
@@ -32,24 +33,24 @@ class Drone(Peer):
 
     # Constants for collision avoidance
     COLLISION_RADIUS = 0.25  # drone radius in meters
-    MAX_SPEED = 1.0  # maximum speed in meters per second
-    MAX_ACCELERATION = 2.0  # maximum acceleration in meters per second^2
-    REPULSION_STRENGTH = 500.0  # repulsion force strength
-    ATTRACTION_STRENGTH = 2.0  # attraction to target strength
-    NEAR_TARGET_REPULSION_MULT = 1.00  # Multiply repulsion when near target
+    MAX_SPEED = 1.5  # maximum speed in meters per second
+    MAX_ACCELERATION = 3.0  # maximum acceleration in meters per second^2
+    REPULSION_STRENGTH = 5000.0  # repulsion force strength
+    ATTRACTION_STRENGTH = 25.0  # attraction to target strength
+    # NEAR_TARGET_REPULSION_MULT = 1.00  # Multiply repulsion when near target
     ARRIVAL_RADIUS = 0.75  # start slowing down within this distance
     TARGET_THRESHOLD = 0.2  # Distance at which target is considered "reached" (meters)
     TARGET_SPEED_THRESHOLD = 0.1  # Speed at which target is considered "reached" (meters per second)
-    BASE_DAMPING = 0.5  # Base velocity damping factor
+    BASE_DAMPING = 0.1  # Base velocity damping factor
     FORCE_DAMPING_FACTOR = 0.05  # How much to increase damping based on force magnitude
-    MAX_DAMPING = 0.99  # Maximum damping coefficient
+    MAX_DAMPING = 0.25  # Maximum damping coefficient
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
         if rospy is not None:
             self._get_telemetry = rospy.ServiceProxy("get_telemetry", GetTelemetry)
-            self.autoland = rospy.ServiceProxy("autoland", Trigger)
+            self.autoland = rospy.ServiceProxy("land", Trigger)
             self.set_position = rospy.ServiceProxy("set_position", SetPosition)
             self.navigate = rospy.ServiceProxy("navigate", Navigate)
 
@@ -75,7 +76,10 @@ class Drone(Peer):
 
     def telemetry_sender(self, _):
         telem = self.get_telemetry(frame_id=self.telemetry_frame)
-        self.telemetry_channel.send(self._telemetry_to_dict(telem))
+        telem_dict = self._telemetry_to_dict(telem)
+        if float("nan") in telem_dict.values():
+            return  # Don't send telemetry if any value is nan (can lead to collision avoidance errors  )
+        self.telemetry_channel.send(telem_dict)
 
     def start(self):
         super().start()
@@ -102,7 +106,7 @@ class Drone(Peer):
         # Normalize distance to drone radius
         d = distance / self.COLLISION_RADIUS
         # Force peaks at d=1 (drone radius) and decays to both sides
-        force = self.REPULSION_STRENGTH * math.exp(-((d - 1) ** 1.4))
+        force = self.REPULSION_STRENGTH * math.exp(-((d - 1) ** 1.45))
         return force
 
     def get_avoidance_vector(
@@ -184,7 +188,6 @@ class Drone(Peer):
         total_force = math.sqrt(fx**2 + fy**2)
         # Apply forces to velocity with damping
         damping = min(self.BASE_DAMPING + total_force * self.FORCE_DAMPING_FACTOR, self.MAX_DAMPING)
-        # damping = 0
 
         # Calculate desired new velocity
         desired_vx = prev_vx * damping + fx * (1 - damping)
@@ -225,6 +228,8 @@ class Drone(Peer):
         z: float = 0.0,
         yaw: float = float("nan"),
         frame_id: str = "",
+        timeout: float = 60.0,
+        perpetual: bool = False,
     ):
         """Navigate to target position while avoiding other drones."""
         self.logger.info(f"Navigating to x={x:.2f} y={y:.2f} z={z:.2f} in {frame_id} with collision avoidance")
@@ -233,21 +238,27 @@ class Drone(Peer):
         rate = rospy.Rate(rate_hz)
         target_dt = 1.0 / rate_hz
         vx, vy, vz = 0, 0, 0
+        time_start = time.time()
 
         while True:
             telem = self.get_telemetry(frame_id)
-            vx, vy, vz = self.get_avoidance_vector(self._telemetry_to_dict(telem), x, y, z, vx, vy, vz, dt=target_dt)
-            if vx == 0 and vy == 0 and vz == 0:
-                self.logger.info("Arrived at target")
-                break
+            telem_dict = self._telemetry_to_dict(telem)
+            if float("nan") not in telem_dict.values():
+                vx, vy, vz = self.get_avoidance_vector(telem_dict, x, y, z, vx, vy, vz, dt=target_dt)
+                if not perpetual and vx == 0 and vy == 0 and vz == 0:
+                    self.logger.info("Arrived at target")
+                    break
 
-            # Apply avoidance vector to movement
-            next_x = telem.x + vx * target_dt
-            next_y = telem.y + vy * target_dt
-            next_z = telem.z + vz * target_dt
-            self.set_position(x=next_x, y=next_y, z=next_z, yaw=yaw, frame_id=frame_id)
+                # Apply avoidance vector to movement
+                next_x = telem.x + vx * target_dt
+                next_y = telem.y + vy * target_dt
+                next_z = telem.z + vz * target_dt
+                self.set_position(x=next_x, y=next_y, z=z, yaw=yaw, frame_id=frame_id)
 
             rate.sleep()
+            if timeout and time.time() - time_start > timeout:
+                self.logger.info("Timed out")
+                break
 
     def navigate_wait(self, x=0, y=0, z=0, yaw=float("nan"), speed=0.5, frame_id="", auto_arm=False, tolerance=0.2):
         self.logger.info(f"Navigating to x={x:.2f} y={y:.2f} z={z:.2f} in {frame_id}")
