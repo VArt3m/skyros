@@ -3,10 +3,14 @@ import threading
 import uuid
 from typing import Tuple
 
-import rospy
 from attrs import define, field
-from clover.srv import GetTelemetry, GetTelemetryResponse, Navigate, SetPosition
-from std_srvs.srv import Trigger
+
+try:
+    import rospy
+    from clover.srv import GetTelemetry, GetTelemetryResponse, Navigate, SetPosition
+    from std_srvs.srv import Trigger
+except ImportError:
+    rospy = None
 
 from skyros.peer import Channel, Peer
 
@@ -18,42 +22,45 @@ class Drone(Peer):
     telemetry_frame: str = field(default="aruco_map")
 
     _telemtry_lock: threading.Lock = field(init=False, factory=threading.Lock)
-    _telemetry_timer: rospy.Timer = field(init=False)
-    _get_telemetry: rospy.ServiceProxy = field(init=False)
+    _telemetry_timer: "rospy.Timer" = field(init=False)
+    _get_telemetry: "rospy.ServiceProxy" = field(init=False)
     telemetry_channel: Channel = field(init=False)
 
-    navigate: rospy.ServiceProxy = field(init=False)
-    autoland = rospy.ServiceProxy("land", Trigger)
-    set_position = rospy.ServiceProxy("set_position", SetPosition)
+    navigate: "rospy.ServiceProxy" = field(init=False)
+    autoland: "rospy.ServiceProxy" = field(init=False)
+    set_position: "rospy.ServiceProxy" = field(init=False)
 
     # Constants for collision avoidance
     COLLISION_RADIUS = 0.25  # drone radius in meters
-    MAX_SPEED = 0.75  # maximum speed in meters per second
-    MAX_ACCELERATION = 1.0  # maximum acceleration in meters per second^2
-    REPULSION_STRENGTH = 50000.0  # repulsion force strength
-    ATTRACTION_STRENGTH = 1.0  # attraction to target strength
-    NEAR_TARGET_REPULSION_MULT = 1.5  # Multiply repulsion when near target
+    MAX_SPEED = 1.0  # maximum speed in meters per second
+    MAX_ACCELERATION = 2.0  # maximum acceleration in meters per second^2
+    REPULSION_STRENGTH = 500.0  # repulsion force strength
+    ATTRACTION_STRENGTH = 2.0  # attraction to target strength
+    NEAR_TARGET_REPULSION_MULT = 1.00  # Multiply repulsion when near target
     ARRIVAL_RADIUS = 0.75  # start slowing down within this distance
-    TARGET_THRESHOLD = 0.15  # Distance at which target is considered "reached" (meters)
-    TARGET_SPEED_THRESHOLD = 0.05  # Speed at which target is considered "reached" (meters per second)
-    BASE_DAMPING = 0.75  # Base velocity damping factor
-    FORCE_DAMPING_FACTOR = 0.02  # How much to increase damping based on force magnitude
-    MAX_DAMPING = 0.95  # Maximum damping coefficient
+    TARGET_THRESHOLD = 0.2  # Distance at which target is considered "reached" (meters)
+    TARGET_SPEED_THRESHOLD = 0.1  # Speed at which target is considered "reached" (meters per second)
+    BASE_DAMPING = 0.5  # Base velocity damping factor
+    FORCE_DAMPING_FACTOR = 0.05  # How much to increase damping based on force magnitude
+    MAX_DAMPING = 0.99  # Maximum damping coefficient
 
     def __attrs_post_init__(self):
         super().__attrs_post_init__()
 
-        self._get_telemetry = rospy.ServiceProxy("get_telemetry", GetTelemetry)
+        if rospy is not None:
+            self._get_telemetry = rospy.ServiceProxy("get_telemetry", GetTelemetry)
+            self.autoland = rospy.ServiceProxy("autoland", Trigger)
+            self.set_position = rospy.ServiceProxy("set_position", SetPosition)
+            self.navigate = rospy.ServiceProxy("navigate", Navigate)
+
         self.telemetry_channel = Channel(key="telemetry/pose")
         self.add_channel(self.telemetry_channel)
 
-        self.navigate = rospy.ServiceProxy("navigate", Navigate)
-
-    def get_telemetry(self, frame_id: str = "aruco_map") -> GetTelemetryResponse:
+    def get_telemetry(self, frame_id: str = "aruco_map") -> "GetTelemetryResponse":
         with self._telemtry_lock:
             return self._get_telemetry(frame_id=frame_id)
 
-    def _telemetry_to_dict(self, telem: GetTelemetryResponse) -> dict:
+    def _telemetry_to_dict(self, telem: "GetTelemetryResponse") -> dict:
         return {
             "x": telem.x,
             "y": telem.y,
@@ -86,22 +93,16 @@ class Drone(Peer):
 
     def calculate_repulsion_force(self, distance: float) -> float:
         """Calculate repulsion force that peaks at drone radius."""
-        if distance >= self.COLLISION_RADIUS * 6:
+        if distance >= self.COLLISION_RADIUS * 10:
             return 0
 
         if distance < self.COLLISION_RADIUS:
             return 0
 
-        if distance < self.COLLISION_RADIUS * 1.5:  # Strong repulsion when very close
-            return (
-                self.REPULSION_STRENGTH
-                * (self.COLLISION_RADIUS * 1.5 / max(distance, self.COLLISION_RADIUS * 0.5)) ** 3
-            )
-
         # Normalize distance to drone radius
         d = distance / self.COLLISION_RADIUS
         # Force peaks at d=1 (drone radius) and decays to both sides
-        force = self.REPULSION_STRENGTH * math.exp(-((d - 1) ** 2.5))
+        force = self.REPULSION_STRENGTH * math.exp(-((d - 1) ** 1.4))
         return force
 
     def get_avoidance_vector(
@@ -122,13 +123,20 @@ class Drone(Peer):
         dx_target = target_x - my_telem["x"]
         dy_target = target_y - my_telem["y"]
         dist_to_target = math.sqrt(dx_target**2 + dy_target**2)
+
         # Clamp the magnitude
         if dist_to_target > self.ARRIVAL_RADIUS:
             dx_target = dx_target / dist_to_target * self.ARRIVAL_RADIUS
             dy_target = dy_target / dist_to_target * self.ARRIVAL_RADIUS
 
-        fx += dx_target * self.ATTRACTION_STRENGTH
-        fy += dy_target * self.ATTRACTION_STRENGTH
+        attraction_mult = self.ATTRACTION_STRENGTH
+        APPROACH_RADIUS = self.ARRIVAL_RADIUS * 1.5
+        if dist_to_target < APPROACH_RADIUS:
+            # Gradually decrease attraction as we get closer to target
+            attraction_mult *= max(0.1, (dist_to_target / APPROACH_RADIUS) ** 1.0)
+
+        fx += dx_target * attraction_mult
+        fy += dy_target * attraction_mult
 
         all_telemetry = self.telemetry_channel.get_all()
         for drone_id, other_telem in all_telemetry.items():
@@ -176,6 +184,7 @@ class Drone(Peer):
         total_force = math.sqrt(fx**2 + fy**2)
         # Apply forces to velocity with damping
         damping = min(self.BASE_DAMPING + total_force * self.FORCE_DAMPING_FACTOR, self.MAX_DAMPING)
+        # damping = 0
 
         # Calculate desired new velocity
         desired_vx = prev_vx * damping + fx * (1 - damping)
@@ -256,14 +265,14 @@ class Drone(Peer):
         self.logger.info(f"Taking off to z={z:.2f}")
         self.navigate(z=1.5, frame_id="body", auto_arm=True)
         self.wait(1.0)
-        telem: GetTelemetryResponse = self.get_telemetry(frame_id="body")
+        telem = self.get_telemetry(frame_id="body")
         if not telem.armed:
             raise RuntimeError("Arming failed!")
         self.wait(delay)
         self.logger.info("Takeoff done")
 
     def land(self, z=0.5, delay: float = 4.0, frame_id="aruco_map"):
-        telem: GetTelemetryResponse = self.get_telemetry(frame_id=frame_id)
+        telem = self.get_telemetry(frame_id=frame_id)
         self.logger.info("Pre-landing")
         self.navigate_wait(x=telem.x, y=telem.y, z=z, frame_id=frame_id)
         self.wait(1.0)
