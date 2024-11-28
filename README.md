@@ -22,3 +22,13 @@ Update Skyros
 git pull --rebase --autostash
 uv sync
 ```
+
+
+## Usage
+
+Perf tests
+```bash
+uv run tests/perf/recv.py
+
+uv run tests/perf/send.py
+```

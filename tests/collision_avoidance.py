@@ -19,7 +19,7 @@ rospy.init_node(peer.name)
 with peer:
     logger.info("Drone started...")
     logger.info("Waiting for other drones...")
-    peer.wait_for_peer_amount(2)  # Wait for at least one other drone
+    peer.wait_for_peer_amount(1)  # Wait for at least one other drone
     logger.info(f"Connected peers: {peer.get_peers()}")
 
     # Take off
