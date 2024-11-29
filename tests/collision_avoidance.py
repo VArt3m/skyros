@@ -7,8 +7,8 @@ import rospy
 from skyros.drone import Drone
 
 # Initialize logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 # Initialize drone
 peer = Drone(pathlib.Path(__file__).parent / "zenoh-config.json5")
@@ -23,8 +23,8 @@ with peer:
     logger.info(f"Connected peers: {peer.get_peers()}")
 
     # Take off
-    peer.takeoff(z=1.5)
-    peer.wait(2)
+    peer.takeoff(z=1.5, delay=7.5)
+    peer.wait(2.5)
 
     # Navigate with collision avoidance
     waypoints1 = [
@@ -43,6 +43,8 @@ with peer:
     waypoints = waypoints1
 
     try:
+        x, y, z = waypoints[0]
+        peer.navigate_wait(x=x, y=y, z=z, frame_id="aruco_map")
         for x, y, z in waypoints:
             logger.info(f"Navigating to waypoint: ({x}, {y}, {z})")
             peer.navigate_with_avoidance(x=x, y=y, z=z, frame_id="aruco_map", timeout=20.0)
