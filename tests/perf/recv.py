@@ -90,9 +90,9 @@ class ThroughputMonitor:
                 print(f"Absolute latency:   {abs_median:.2f} ms")
 
         if relative_latencies:
-            rel_median = statistics.median(relative_latencies) * 1000
+            # rel_median = statistics.median(relative_latencies) * 1000
             rel_jitter = statistics.stdev(relative_latencies) * 1000 if len(relative_latencies) > 1 else 0
-            print(f"Inter-message time: {rel_median:.4f} ms")
+            # print(f"Inter-message time: {rel_median:.4f} ms")
             print(f"Relative jitter:   ±{rel_jitter:.4f} ms")
         print("===================================")
 
