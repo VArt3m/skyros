@@ -1,6 +1,7 @@
 import logging
 import pathlib
 import sys
+from zlib import Z_DEFAULT_STRATEGY
 
 import rospy
 
@@ -42,14 +43,14 @@ with peer:
     ]
     waypoints = waypoints1
 
+    x_start, y_start, z_start = waypoints[0]
     try:
-        x, y, z = waypoints[0]
-        peer.navigate_wait(x=x, y=y, z=z, frame_id="aruco_map")
+        peer.navigate_wait(x=x_start, y=y_start, z=z_start, frame_id="aruco_map")
         for x, y, z in waypoints:
             logger.info(f"Navigating to waypoint: ({x}, {y}, {z})")
             peer.navigate_with_avoidance(x=x, y=y, z=z, frame_id="aruco_map", timeout=30.0)
             peer.wait(1)
     finally:
         # Return to start and land
-        peer.navigate_wait(x=0.8, y=0, z=1.0, frame_id="aruco_map")
+        peer.navigate_wait(x=x_start, y=y_start, z=1.0, frame_id="aruco_map")
         peer.land()
