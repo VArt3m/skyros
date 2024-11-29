@@ -325,10 +325,10 @@
       ///       enable 'lowlatency' you need to explicitly disable 'qos'.
       /// NOTE: LowLatency transport does not support the fragmentation, so the message size should be
       ///       smaller than the tx batch_size.
-      lowlatency: false,
+      lowlatency: true,
       /// Enables QoS on unicast communications.
       qos: {
-        enabled: true,
+        enabled: false,
       },
       /// Enables compression on unicast communications.
       /// Compression capabilities are negotiated during session establishment.

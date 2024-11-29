@@ -5,6 +5,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Deque
 
+import click
 import zenoh
 
 from skyros.peer import Peer
@@ -20,10 +21,16 @@ class MessageStats:
 
 
 class ThroughputMonitor:
-    def __init__(self, window_size: int = 20000):
+    def __init__(
+        self,
+        window_size: int = 100,
+        print_delay: float = 2,
+        latency_mode: bool = False,
+    ):
         self.window_size = window_size
         self.messages: Deque[MessageStats] = deque(maxlen=window_size)
-        self.print_delay = 2
+        self.print_delay = print_delay
+        self.latency_mode = latency_mode
         self.last_print = time.time()
 
     def add_message(self, stats: MessageStats):
@@ -70,11 +77,13 @@ class ThroughputMonitor:
         print(f"Window size:        {len(self.messages)} messages")
         print(f"Window duration:    {window_duration:.2f} s")
         print(f"Message rate:       {msg_rate:.2f} msg/s")
-        print(f"Throughput:         {self.format_size(throughput)}/s")
+        if not self.latency_mode:
+            print(f"Throughput:         {self.format_size(throughput)}/s")
 
-        if absolute_latencies:
-            abs_median = statistics.median(absolute_latencies) * 1000
-            print(f"Absolute latency:   {abs_median:.2f} ms")
+        else:
+            if absolute_latencies:
+                abs_median = statistics.median(absolute_latencies) * 1000
+                print(f"Absolute latency:   {abs_median:.2f} ms")
 
         if relative_latencies:
             rel_median = statistics.median(relative_latencies) * 1000
@@ -84,34 +93,45 @@ class ThroughputMonitor:
         print("===================================")
 
 
-monitor = ThroughputMonitor()
+@click.command()
+@click.option("--window-size", default=100)
+@click.option("--print-delay", default=2.0)
+@click.option("--latency/--throughput", default=False)
+def main(window_size, print_delay, latency):
+    print(f"Window size: {window_size}")
+    print(f"Print delay: {print_delay}")
+    print(f"Latency mode: {latency}")
+
+    monitor = ThroughputMonitor(window_size=window_size, print_delay=print_delay, latency_mode=latency)
+
+    def perf_handler(sample: zenoh.Sample):
+        send_timestamp = sample.timestamp.get_time()
+        recv_timestamp = peer.zenoh_session.new_timestamp().get_time()
+        stats = MessageStats(
+            size=len(sample.payload.to_bytes()),
+            recv_time=recv_timestamp.timestamp(),
+            send_time=send_timestamp.timestamp(),
+        )
+        monitor.add_message(stats)
+
+    # config_path = Path(__file__).parent.parent / "zenoh-config.json5"
+    # config = cast(dict, json5.loads(config_path.read_text()))
+    config = {}
+    config["mode"] = "router"
+    config["timestamping"] = dict(enabled=True)
+    peer = Peer(config)
+    zenoh.init_log_from_env_or("INFO")
+
+    with peer:
+        peer.zenoh_session.declare_subscriber("perf/data", perf_handler)
+        print("Peer started...")
+        print("Waiting for peers...")
+        peer.wait_for_peer_amount(1)
+        print(f"Got peers: {peer.get_peers()}")
+        while peer.peer_amount > 0:
+            peer.wait(10)
+            # monitor.print_stats()
 
 
-def perf_handler(sample: zenoh.Sample):
-    send_timestamp = sample.timestamp.get_time()
-    recv_timestamp = peer.zenoh_session.new_timestamp().get_time()
-    stats = MessageStats(
-        size=len(sample.payload.to_bytes()),
-        recv_time=recv_timestamp.timestamp(),
-        send_time=send_timestamp.timestamp(),
-    )
-    monitor.add_message(stats)
-
-
-# config_path = Path(__file__).parent.parent / "zenoh-config.json5"
-# config = cast(dict, json5.loads(config_path.read_text()))
-config = {}
-config["mode"] = "router"
-config["timestamping"] = dict(enabled=True)
-peer = Peer(config)
-zenoh.init_log_from_env_or("INFO")
-
-with peer:
-    perf_subscriber = peer.zenoh_session.declare_subscriber("perf/data", perf_handler)
-    print("Peer started...")
-    print("Waiting for peers...")
-    peer.wait_for_peer_amount(1)
-    print(f"Got peers: {peer.get_peers()}")
-    while peer.peer_amount > 0:
-        peer.wait(10)
-        # monitor.print_stats()
+if __name__ == "__main__":
+    main()
