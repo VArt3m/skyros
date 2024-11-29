@@ -47,7 +47,7 @@ with peer:
         peer.navigate_wait(x=x, y=y, z=z, frame_id="aruco_map")
         for x, y, z in waypoints:
             logger.info(f"Navigating to waypoint: ({x}, {y}, {z})")
-            peer.navigate_with_avoidance(x=x, y=y, z=z, frame_id="aruco_map", timeout=20.0)
+            peer.navigate_with_avoidance(x=x, y=y, z=z, frame_id="aruco_map", timeout=30.0)
             peer.wait(1)
     finally:
         # Return to start and land

@@ -32,11 +32,11 @@ class Drone(Peer):
     set_position: "rospy.ServiceProxy" = field(init=False)
 
     # Constants for collision avoidance
-    COLLISION_RADIUS = 0.25  # drone radius in meters
+    COLLISION_RADIUS = 0.1  # drone radius in meters
     MAX_SPEED = 1.5  # maximum speed in meters per second
     MAX_ACCELERATION = 3.0  # maximum acceleration in meters per second^2
     REPULSION_STRENGTH = 5000.0  # repulsion force strength
-    ATTRACTION_STRENGTH = 25.0  # attraction to target strength
+    ATTRACTION_STRENGTH = 50.0  # attraction to target strength
     # NEAR_TARGET_REPULSION_MULT = 1.00  # Multiply repulsion when near target
     ARRIVAL_RADIUS = 0.75  # start slowing down within this distance
     TARGET_THRESHOLD = 0.2  # Distance at which target is considered "reached" (meters)
