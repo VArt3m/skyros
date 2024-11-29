@@ -30,5 +30,5 @@ Perf tests
 ```bash
 uv run tests/perf/recv.py
 
-uv run tests/perf/send.py
+uv run tests/perf/send.py --peer tcp/51.250.24.185:7447 --packet-size 128
 ```
