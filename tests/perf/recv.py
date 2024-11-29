@@ -47,6 +47,9 @@ class ThroughputMonitor:
             size_bytes /= 1024
         return f"{size_bytes:.2f} TB"
 
+    def format_speed(self, size_bytes: float) -> str:
+        return f"{size_bytes / 125000 :.2f} Mbps"
+
     def print_stats(self):
         if len(self.messages) < 2:
             return
@@ -78,7 +81,8 @@ class ThroughputMonitor:
         print(f"Window duration:    {window_duration:.2f} s")
         print(f"Message rate:       {msg_rate:.2f} msg/s")
         if not self.latency_mode:
-            print(f"Throughput:         {self.format_size(throughput)}/s")
+            # print(f"Throughput:         {self.format_size(throughput)}/s")
+            print(f"Throughput:         {self.format_speed(throughput)}")
 
         else:
             if absolute_latencies:
