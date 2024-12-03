@@ -31,8 +31,10 @@ class Drone(Peer):
     autoland: "rospy.ServiceProxy" = field(init=False)
     set_position: "rospy.ServiceProxy" = field(init=False)
 
+    _last_collision_log: float = field(default=0)
+
     # Constants for collision avoidance
-    COLLISION_RADIUS = 0.1  # drone radius in meters
+    COLLISION_RADIUS = 0.15  # drone radius in meters
     MAX_SPEED = 1.5  # maximum speed in meters per second
     MAX_ACCELERATION = 3.0  # maximum acceleration in meters per second^2
     REPULSION_STRENGTH = 5000.0  # repulsion force strength
@@ -121,8 +123,6 @@ class Drone(Peer):
         dt: float = 0.1,
     ) -> Tuple[float, float, float]:
         """Calculate avoidance vector based on other drones' positions."""
-        fx = 0
-        fy = 0
         # Calculate desired movement direction
         dx_target = target_x - my_telem["x"]
         dy_target = target_y - my_telem["y"]
@@ -139,8 +139,11 @@ class Drone(Peer):
             # Gradually decrease attraction as we get closer to target
             attraction_mult *= max(0.1, (dist_to_target / APPROACH_RADIUS) ** 1.0)
 
-        fx += dx_target * attraction_mult
-        fy += dy_target * attraction_mult
+        attr_fx = dx_target * attraction_mult
+        attr_fy = dy_target * attraction_mult
+
+        fx = 0
+        fy = 0
 
         all_telemetry = self.telemetry_channel.get_all()
         for drone_id, other_telem in all_telemetry.items():
@@ -184,7 +187,17 @@ class Drone(Peer):
                 fx -= rel_vx * force * 0.1
                 fy -= rel_vy * force * 0.1
 
+        repulsion_force = math.sqrt(fx**2 + fy**2)
+        attraction_force = math.sqrt(attr_fx**2 + attr_fy**2)
+        if repulsion_force > attraction_force and time.time() - self._last_collision_log > 2.0:
+            self.logger.warning(
+                f"[Collision avoidance] Preventing collision (attraction: {attraction_force:.2f}, repulsion: {repulsion_force:.2f})"
+            )
+            self._last_collision_log = time.time()
+
         # Calculate total force magnitude for adaptive damping
+        fx += attr_fx
+        fy += attr_fy
         total_force = math.sqrt(fx**2 + fy**2)
         # Apply forces to velocity with damping
         damping = min(self.BASE_DAMPING + total_force * self.FORCE_DAMPING_FACTOR, self.MAX_DAMPING)

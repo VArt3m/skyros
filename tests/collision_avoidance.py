@@ -1,7 +1,6 @@
 import logging
 import pathlib
 import sys
-from zlib import Z_DEFAULT_STRATEGY
 
 import rospy
 
