@@ -3,7 +3,7 @@ import statistics
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque
+from typing import Deque, List
 
 import click
 import zenoh
@@ -20,6 +20,14 @@ class MessageStats:
     send_time: float | None
 
 
+@dataclass
+class RecordedStats:
+    throughput: float
+    message_rate: float
+    absolute_latency: float = 0.0
+    # relative_jitter: float
+
+
 class ThroughputMonitor:
     def __init__(
         self,
@@ -29,6 +37,7 @@ class ThroughputMonitor:
     ):
         self.window_size = window_size
         self.messages: Deque[MessageStats] = deque(maxlen=window_size)
+        self.recorded_stats: List[RecordedStats] = []
         self.print_delay = print_delay
         self.latency_mode = latency_mode
         self.last_print = time.time()
@@ -63,6 +72,12 @@ class ThroughputMonitor:
         throughput = total_bytes / window_duration
         msg_rate = len(self.messages) / window_duration
 
+        record = RecordedStats(
+            throughput=throughput,
+            message_rate=msg_rate,
+            absolute_latency=0.0,
+        )
+
         # Calculate latencies
         absolute_latencies = []
         relative_latencies = []
@@ -75,6 +90,15 @@ class ThroughputMonitor:
                 relative_latencies.append(msg.recv_time - prev_recv_time)
             prev_recv_time = msg.recv_time
 
+        if absolute_latencies:
+            abs_median = statistics.median(absolute_latencies) * 1000
+            record.absolute_latency = abs_median
+        # if relative_latencies:
+        # rel_median = statistics.median(relative_latencies) * 1000
+        # rel_jitter = statistics.stdev(relative_latencies) * 1000 if len(relative_latencies) > 1 else 0
+
+        self.recorded_stats.append(record)
+
         print()
         print("===== Performance Statistics ======")
         print(f"Window size:        {len(self.messages)} messages")
@@ -83,18 +107,31 @@ class ThroughputMonitor:
         if not self.latency_mode:
             # print(f"Throughput:         {self.format_size(throughput)}/s")
             print(f"Throughput:         {self.format_speed(throughput)}")
+        elif absolute_latencies:
+            print(f"Absolute latency:   {abs_median:.2f} ms")
 
-        else:
-            if absolute_latencies:
-                abs_median = statistics.median(absolute_latencies) * 1000
-                print(f"Absolute latency:   {abs_median:.2f} ms")
-
-        if relative_latencies:
-            # rel_median = statistics.median(relative_latencies) * 1000
-            rel_jitter = statistics.stdev(relative_latencies) * 1000 if len(relative_latencies) > 1 else 0
-            # print(f"Inter-message time: {rel_median:.4f} ms")
-            print(f"Relative jitter:   ±{rel_jitter:.4f} ms")
+        # if relative_latencies:
+        # print(f"Inter-message time: {rel_median:.4f} ms")
+        # print(f"Relative jitter:   ±{rel_jitter:.4f} ms")
         print("===================================")
+
+    def print_recorded_stats(self):
+        if not self.recorded_stats:
+            print("No recorded stats to display")
+            return
+
+        median_throughput = statistics.median([stats.throughput for stats in self.recorded_stats])
+        median_msg_rate = statistics.median([stats.message_rate for stats in self.recorded_stats])
+        median_latency = statistics.median([stats.absolute_latency for stats in self.recorded_stats])
+
+        print()
+        print("===== Recorded Statistics ======")
+        print(f"Median message rate:{median_msg_rate:.2f} msg/s")
+        if not self.latency_mode:
+            print(f"Median latency:     {median_latency:.2f} ms")
+        else:
+            print(f"Median throughput:  {self.format_speed(median_throughput)}")
+        print("==================================")
 
 
 @click.command()
@@ -126,15 +163,18 @@ def main(window_size, print_delay, latency):
     peer = Peer(config)
     zenoh.init_log_from_env_or("INFO")
 
-    with peer:
-        peer.zenoh_session.declare_subscriber("perf/data", perf_handler)
-        print("Peer started...")
-        print("Waiting for peers...")
-        peer.wait_for_peer_amount(1)
-        print(f"Got peers: {peer.get_peers()}")
-        while peer.peer_amount > 0:
-            peer.wait(10)
-            # monitor.print_stats()
+    try:
+        with peer:
+            peer.zenoh_session.declare_subscriber("perf/data", perf_handler)
+            print("Peer started...")
+            print("Waiting for peers...")
+            peer.wait_for_peer_amount(1)
+            print(f"Got peers: {peer.get_peers()}")
+            while peer.peer_amount > 0:
+                peer.wait(10)
+                # monitor.print_stats()
+    finally:
+        monitor.print_recorded_stats()
 
 
 if __name__ == "__main__":
