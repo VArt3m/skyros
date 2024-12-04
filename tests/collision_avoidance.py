@@ -32,6 +32,12 @@ with peer:
         (-0.8, -0.64, 1.5),
         (0.8, 0.15, 1.5),
         (0.0, -0.3, 1.5),
+        (0.8, 0.0, 1.5),
+        (-0.8, -0.64, 1.5),
+        (0.8, 0.15, 1.5),
+        (0.8, 0.0, 1.5),
+        (-0.3, -0.3, 1.5),
+        (0.8, 0.0, 1.5),
     ]
 
     waypoints2 = [
@@ -39,6 +45,12 @@ with peer:
         (0.8, 0.15, 1.5),
         (-0.8, -0.64, 1.5),
         (0.0, -0.3, 1.5),
+        (0.8, 0.0, 1.5),
+        (-0.8, -0.64, 1.5),
+        (0.8, 0.15, 1.5),
+        (-0.8, 0.0, 1.5),
+        (0.3, -0.3, 1.5),
+        (-0.8, 0.0, 1.5),
     ]
     waypoints = waypoints1
 
@@ -47,7 +59,7 @@ with peer:
         peer.navigate_wait(x=x_start, y=y_start, z=z_start, frame_id="aruco_map")
         for x, y, z in waypoints:
             logger.info(f"Navigating to waypoint: ({x}, {y}, {z})")
-            peer.navigate_with_avoidance(x=x, y=y, z=z, frame_id="aruco_map", timeout=30.0)
+            peer.navigate_with_avoidance(x=x, y=y, z=z, frame_id="aruco_map", timeout=20.0)
             peer.wait(1)
     finally:
         # Return to start and land

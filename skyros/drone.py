@@ -146,6 +146,7 @@ class Drone(Peer):
         fy = 0
 
         all_telemetry = self.telemetry_channel.get_all()
+        distances = {}
         for drone_id, other_telem in all_telemetry.items():
             if drone_id == self.name:  # Skip self
                 continue
@@ -153,6 +154,7 @@ class Drone(Peer):
             dx = my_telem["x"] - other_telem["x"]
             dy = my_telem["y"] - other_telem["y"]
             distance = math.sqrt(dx**2 + dy**2)
+            distances[drone_id] = distance
 
             # Predict future positions based on current velocities
             future_dx = (my_telem["x"] + my_telem["vx"] * dt) - (other_telem["x"] + other_telem["vx"] * dt)
@@ -192,6 +194,9 @@ class Drone(Peer):
         if repulsion_force > attraction_force and time.time() - self._last_collision_log > 2.0:
             self.logger.warning(
                 f"[Collision avoidance] Preventing collision (attraction: {attraction_force:.2f}, repulsion: {repulsion_force:.2f})"
+            )
+            self.logger.warning(
+                msg=f" [Collision avoidance] Distances: {' | '.join([f'{drone_id}: {distance:.2f} m' for drone_id, distance in distances.items()])}",
             )
             self._last_collision_log = time.time()
 

@@ -125,8 +125,8 @@ class ThroughputMonitor:
         median_latency = statistics.median([stats.absolute_latency for stats in self.recorded_stats])
 
         print()
-        print("===== Recorded Statistics ======")
-        print(f"Median message rate:{median_msg_rate:.2f} msg/s")
+        print("===== Recorded Statistics ========")
+        print(f"Median message rate: {median_msg_rate:.2f} msg/s")
         if self.latency_mode:
             print(f"Median latency:     {median_latency:.2f} ms")
         else:
