@@ -127,7 +127,7 @@ class ThroughputMonitor:
         print()
         print("===== Recorded Statistics ======")
         print(f"Median message rate:{median_msg_rate:.2f} msg/s")
-        if not self.latency_mode:
+        if self.latency_mode:
             print(f"Median latency:     {median_latency:.2f} ms")
         else:
             print(f"Median throughput:  {self.format_speed(median_throughput)}")
@@ -171,7 +171,7 @@ def main(window_size, print_delay, latency):
             peer.wait_for_peer_amount(1)
             print(f"Got peers: {peer.get_peers()}")
             while peer.peer_amount > 0:
-                peer.wait(10)
+                peer.wait(5)
                 # monitor.print_stats()
     finally:
         monitor.print_recorded_stats()
